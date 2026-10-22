@@ -1,5 +1,5 @@
 name: hermes-auto-titler
-version: 0.3.0+estate.2
+version: 0.3.0+estate.3
 description: "Topic-aware session title tracking. Hermes owns the first title; the plugin tracks multi-turn evolution, drift, and session close, and never rewrites host configuration on install or uninstall."
 author: "Vocllum"
 license: Apache-2.0
@@ -144,3 +144,8 @@ config_schema:
     label: "Task card context"
     default: false
     description: "Estate fork: add the task card title (first kanban_show-style tool result) to the title context."
+  blocked_words:
+    type: string
+    label: "Blocked words"
+    default: ""
+    description: "Estate fork: comma-separated words (hosts, people, agents) dropped from every title before it is written."

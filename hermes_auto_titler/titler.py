@@ -312,6 +312,32 @@ def _retry_delay(retry_class: str, class_attempts: int) -> int:
     return min(30 * (2 ** min(n - 1, 5)), 600)
 
 
+def scrub_blocked_words(title: str, words: Any) -> str:
+    """Estate fork: drop each blocked word (and its possessive) from a title.
+
+    ``words`` is the comma-separated ``blocked_words`` setting. Matching is
+    case-insensitive on word edges. Returns "" when nothing but a prefix is left.
+    """
+    if not title or not words:
+        return title
+    out = title
+    for w in str(words).split(","):
+        w = w.strip()
+        if not w:
+            continue
+        out = re.sub(r"(?<![A-Za-z0-9])" + re.escape(w) + r"(?:['’]s)?(?![A-Za-z0-9])", " ", out, flags=re.IGNORECASE)
+    if out == title:
+        return title
+    out = re.sub(r"\s+([:,])", r"\1", re.sub(r"\s+", " ", out)).strip(" ,-–—")
+    out = re.sub(r":\s*:", ":", out)
+    head, sep, tail = out.partition(":")
+    if sep and not tail.strip(" ,-–—"):
+        return ""
+    if sep:
+        out = f"{head.strip()}: {tail.strip(' ,-–—')}"
+    return out.strip()
+
+
 class AutoTitler:
     def __init__(self, ctx, cfg: dict[str, Any], db: SessionDB | None = None):
         self.ctx = ctx
@@ -1841,6 +1867,7 @@ class AutoTitler:
     def _prepare_candidate(self, title: str) -> Optional[str]:
         """规范化 + 双重硬截断（字符上限 + 列宽上限）后的候选标题；空则 None。"""
         t = self._clean_title(title)
+        t = scrub_blocked_words(t, self.cfg.get("blocked_words", ""))
         if not t:
             return None
         max_len, max_cols = self._bounds()

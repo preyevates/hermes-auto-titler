@@ -1,4 +1,4 @@
-"""Estate fork guarantees: startup_requeue off switch, title_cutoff and task_context."""
+"""Estate fork guarantees: startup_requeue off switch, title_cutoff, task_context and blocked_words."""
 import datetime as dt
 from types import SimpleNamespace
 
@@ -146,3 +146,34 @@ def test_titler_passes_task_context_to_prompt():
     t.evaluate("s1", force=True)
     sent = " ".join(str(m.get("content")) for call in llm.calls for m in call.get("messages", []))
     assert "Renovate: nightly run fails on lookup" in sent
+
+
+# --- blocked_words (estate fork, 0.3.0+estate.3) -------------------------------------------
+
+def test_blocked_words_default_empty_keeps_upstream_title():
+    from hermes_auto_titler.titler import scrub_blocked_words
+    assert DEFAULTS["blocked_words"] == ""
+    assert scrub_blocked_words("Media Library: Frasier corpus", "") == "Media Library: Frasier corpus"
+
+
+def test_blocked_words_are_dropped_case_insensitively_with_possessive():
+    from hermes_auto_titler.titler import scrub_blocked_words
+    w = "frasier,ratio,pr👁️vates"
+    assert scrub_blocked_words("Media Library: Frasier corpus inspection", w) == "Media Library: corpus inspection"
+    assert scrub_blocked_words("Servers and workstation: RATIO's disk alert", w) == "Servers and workstation: disk alert"
+    assert scrub_blocked_words("Operations: ratios review", w) == "Operations: ratios review"
+    assert scrub_blocked_words("Operations: note for Pr👁️vates", w) == "Operations: note for"
+    assert scrub_blocked_words("Operations: Frasier", w) == ""
+
+
+def test_blocked_words_config_accepts_list_and_string():
+    from hermes_auto_titler.config import coerce_value
+    assert coerce_value("blocked_words", ["a", " b ", ""]) == "a,b"
+    assert coerce_value("blocked_words", " a , b ,") == "a,b"
+
+
+def test_titler_never_writes_a_blocked_word():
+    db = DatedDB(5000.0, messages=CARD_CONV, title=None, source=None)
+    t, llm = titler(db, blocked_words="frasier")
+    assert t._prepare_candidate("Media Library: Frasier corpus inspection") == "Media Library: corpus inspection"
+    assert t._prepare_candidate("Operations: Frasier") is None

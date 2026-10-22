@@ -93,6 +93,10 @@
 
 - Initial public release.
 
+## 0.3.0+estate.3 (estate fork, 2026-10-22)
+
+Adds `blocked_words` (default empty): comma-separated words, such as host, person and agent names, that never reach a stored title. Each is dropped, with its possessive, from a candidate before it is written; a title left with nothing after its prefix is discarded. A prompt cannot guarantee "never"; this does.
+
 ## 0.3.0+estate.2 (estate fork, 2026-10-22)
 
 Adds `task_context` (default off): the first task-card tool result (`{"task": {"title": ...}}`, e.g. Kanban `kanban_show`) is put first in the user turn that started it as `Task card: <title>` (a bare "work kanban task <id>" dispatch line is replaced), and card ids (`t_<8 hex>`) in the context become "the card". Without it, a worker session whose only human text is "work kanban task <id>" can only be titled by the queue, not by the card's subject. Measured on 99 real Kanban worker sessions: every one was titled by the queue.

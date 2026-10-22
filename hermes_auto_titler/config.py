@@ -72,6 +72,9 @@ DEFAULTS: dict[str, Any] = {
     # Estate fork: add the task card's title (first {"task": {"title"}} tool
     # result, e.g. kanban_show) to the context. False keeps upstream behaviour.
     "task_context": False,
+    # Estate fork: comma-separated words (host, person, agent names) that never
+    # reach a title; each is dropped from a candidate before it is written.
+    "blocked_words": "",
 }
 
 VALID_STRATEGIES = {"conservative", "aggressive"}
@@ -166,6 +169,10 @@ def coerce_value(key: str, raw: Any) -> Any:
             v = raw
         elif key == "custom_instructions":
             v = str(raw) if raw is not None else ""
+        elif key == "blocked_words":
+            if isinstance(raw, (list, tuple)):
+                raw = ",".join(str(x) for x in raw)
+            v = "" if raw is None else ",".join(w.strip() for w in str(raw).split(",") if w.strip())
         elif key == "title_cutoff":
             v = "" if raw is None else str(raw).strip()
             if v and parse_cutoff(v) is None:

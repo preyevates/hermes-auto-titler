@@ -73,7 +73,8 @@ def test_manifest_settings_order_and_defaults_match_runtime():
         "every_n_turns", "on_close", "rename_confirmations",
         "title_model", "provider",
     ]
-    assert keys[-1] == "max_renames_per_session"
+    # estate fork appends startup_requeue and title_cutoff after the upstream keys
+    assert keys[-3:] == ["max_renames_per_session", "startup_requeue", "title_cutoff"]
     for key, field in schema.items():
         expected = DEFAULTS[key]
         # Hermes' numeric field serializes an optional None default as zero.

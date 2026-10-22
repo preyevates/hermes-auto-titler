@@ -92,3 +92,7 @@
 ## 0.1.0
 
 - Initial public release.
+
+## 0.3.0+estate.1 (estate fork, 2026-10-22)
+
+Fork of Vocllum/hermes-auto-titler at 42259f5. Adds `startup_requeue` (off switch for the startup sweep of past sessions) and `title_cutoff` (automatic titling never touches sessions started before it). Upstream behaviour unchanged at defaults. Upstream: candidate PR to Vocllum; Hermes request NousResearch/hermes-agent#92393.

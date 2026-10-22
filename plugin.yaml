@@ -1,9 +1,9 @@
 name: hermes-auto-titler
-version: 0.3.0
+version: 0.3.0+estate.1
 description: "Topic-aware session title tracking. Hermes owns the first title; the plugin tracks multi-turn evolution, drift, and session close, and never rewrites host configuration on install or uninstall."
 author: "Vocllum"
 license: Apache-2.0
-homepage: https://github.com/Vocllum/hermes-auto-titler
+homepage: https://github.com/preyevates/hermes-auto-titler  # estate fork of https://github.com/Vocllum/hermes-auto-titler @ 42259f5
 manifest_version: 2
 api_version: 1
 provides_hooks:
@@ -129,3 +129,13 @@ config_schema:
     label: "Renames per session"
     default: 0
     description: "Optional automatic rename limit; 0 disables it. First and manual naming do not count."
+  startup_requeue:
+    type: bool
+    label: "Startup requeue"
+    default: true
+    description: "Estate fork: sweep recent untitled sessions at startup. false never touches past sessions at startup."
+  title_cutoff:
+    type: str
+    label: "Title cutoff"
+    default: ""
+    description: "Estate fork: automatic titling skips sessions started before this ISO date/datetime or Unix time. Empty = no cutoff."

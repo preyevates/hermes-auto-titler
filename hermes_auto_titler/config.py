@@ -61,6 +61,14 @@ DEFAULTS: dict[str, Any] = {
     # 可选的自定义提示词片段，追加到 system prompt 末尾。留空则无影响。
     # 可用于注入个人偏好，如 "标题使用英文" 或 "永远包含项目名前缀"。
     "custom_instructions": "",
+    # Estate fork: startup recovery sweep of up to 200 recent untitled/derived
+    # sessions. True keeps upstream behaviour; False never touches past sessions
+    # at startup (only sessions that fail during this process are retried).
+    "startup_requeue": True,
+    # Estate fork: automatic titling skips every session that started before this
+    # moment (ISO date, ISO datetime, or Unix seconds). Empty = no cutoff.
+    # Explicit /autotitler commands are not affected.
+    "title_cutoff": "",
 }
 
 VALID_STRATEGIES = {"conservative", "aggressive"}
@@ -96,6 +104,35 @@ def _coerce_bool(raw: Any) -> bool:
     raise ValueError(f"not a boolean: {raw!r}")
 
 
+def parse_cutoff(raw: Any) -> float | None:
+    """Estate fork: ``title_cutoff`` as Unix seconds, or None when empty/invalid.
+
+    A bare date or a datetime without an offset is read in local time, as a
+    person writing the config would mean it.
+    """
+    import datetime as _dt
+
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return float(raw) if math.isfinite(raw) and raw > 0 else None
+    if isinstance(raw, (_dt.datetime, _dt.date)):
+        raw = raw.isoformat()
+    s = str(raw).strip()
+    if not s:
+        return None
+    try:
+        f = float(s)
+        return f if math.isfinite(f) and f > 0 else None
+    except ValueError:
+        pass
+    try:
+        d = _dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d.timestamp()
+
+
 def coerce_value(key: str, raw: Any) -> Any:
     """单个配置键的类型 + 边界归一化；非法类型/枚举抛 ValueError。
 
@@ -126,6 +163,10 @@ def coerce_value(key: str, raw: Any) -> Any:
             v = raw
         elif key == "custom_instructions":
             v = str(raw) if raw is not None else ""
+        elif key == "title_cutoff":
+            v = "" if raw is None else str(raw).strip()
+            if v and parse_cutoff(v) is None:
+                raise ValueError(f"not an ISO date/datetime or Unix time: {raw!r}")
         elif isinstance(default, int):
             if isinstance(raw, bool):  # YAML true/false 不是合法整数
                 raise ValueError(f"not an integer: {raw!r}")

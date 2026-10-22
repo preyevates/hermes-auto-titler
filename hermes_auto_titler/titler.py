@@ -46,6 +46,7 @@ except ImportError:  # pragma: no cover
         from pathlib import Path
         return Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes")))
 
+from .config import parse_cutoff
 from .messages import display_width, load_context_with_summary, truncate_to_width
 from .state import StateStore
 
@@ -610,10 +611,13 @@ class AutoTitler:
         self._retry_stop = threading.Event()
 
         def run() -> None:
-            try:
-                self._requeue_untitled_sessions()
-            except Exception:
-                log.warning("auto-titler untitled requeue failed", exc_info=True)
+            if self.cfg.get("startup_requeue", True):
+                try:
+                    self._requeue_untitled_sessions()
+                except Exception:
+                    log.warning("auto-titler untitled requeue failed", exc_info=True)
+            else:
+                log.info("auto-titler: startup requeue disabled (startup_requeue: false)")
             while not self._retry_stop.wait(30.0):
                 try:
                     self._retry_failed_sessions()
@@ -626,6 +630,55 @@ class AutoTitler:
             daemon=True,
         )
         self._retry_thread.start()
+
+    def _session_started_at(self, session_id: str) -> Optional[float]:
+        """Estate fork: the session's started_at (Unix seconds), cached; None if unknown."""
+        cache = self.__dict__.setdefault("_started_at_cache", {})
+        if session_id in cache:
+            return cache[session_id]
+        row = None
+        for name in ("get_session_list_row", "get_session"):
+            getter = getattr(self.db, name, None)
+            if getter is None:
+                continue
+            try:
+                row = getter(session_id)
+            except Exception:
+                row = None
+            if row:
+                break
+        started = None
+        if row:
+            try:
+                raw = row.get("started_at") if hasattr(row, "get") else row["started_at"]
+                started = float(raw) if raw is not None else None
+            except Exception:
+                started = None
+        if started is not None:
+            cache[session_id] = started  # immutable once the row exists
+        return started
+
+    def _before_cutoff(self, session_id: str) -> bool:
+        """Estate fork: True when automatic titling must leave this session alone.
+
+        Sessions that started before ``title_cutoff`` are past records. A session
+        whose start time cannot be read is treated as past (fail safe).
+        """
+        cutoff = parse_cutoff(self.cfg.get("title_cutoff"))
+        if cutoff is None:
+            return False
+        started = self._session_started_at(session_id)
+        if started is not None and started >= cutoff:
+            return False
+        skipped = self.__dict__.setdefault("_cutoff_skipped", set())
+        if session_id not in skipped:
+            skipped.add(session_id)
+            log.info(
+                "auto-titler: session %s %s title_cutoff; automatic titling skipped",
+                session_id[:12],
+                "started before" if started is not None else "has no start time; treated as before",
+            )
+        return True
 
     def _early_enabled(self) -> bool:
         """首轮命名开关：plugin=插件第 1 轮即评估；builtin（默认）=首轮让给内建。"""
@@ -667,6 +720,8 @@ class AutoTitler:
         the session.  Only an explicit claimant providing a recorded close_epoch
         from an existing finalize intent may evaluate a closed session.
         """
+        if self._before_cutoff(session_id):
+            return
         with self._state_lock:
             if finalize_claim is None:
                 retry_meta = self._failed_sessions.get(session_id)

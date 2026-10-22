@@ -101,14 +101,24 @@ def _ctx(conv, **kw):
 def test_task_context_off_by_default_keeps_upstream_context():
     assert DEFAULTS["task_context"] is False
     _, all_user, _, _ = _ctx(CARD_CONV)
-    assert all_user and all("[card:" not in t for _, t in all_user)
+    assert all_user and all("Task card:" not in t for _, t in all_user)
+    assert any("t_d44358a1" in t for _, t in all_user)
 
 
 def test_task_context_adds_card_title_to_starting_user_turn():
     recent, all_user, _, _ = _ctx(CARD_CONV, task_context=True)
-    assert any("[card: Renovate: nightly run fails on lookup]" in t for r, t in recent if r == "user")
-    assert any("[card: Renovate: nightly run fails on lookup]" in t for _, t in all_user)
+    assert ("user", "Task card: Renovate: nightly run fails on lookup") in recent
+    assert all_user[0][1] == "Task card: Renovate: nightly run fails on lookup"
     assert all(r != "tool" for r, _ in recent)
+
+
+def test_task_context_keeps_real_user_text_and_scrubs_card_ids():
+    conv = [{"role": "user", "content": "Please look at the card t_d44358a1 and fix the lookup"}] + CARD_CONV[1:] + [
+        {"role": "assistant", "content": "Completed t_d44358a1; review is t_0000abcd."}]
+    recent, all_user, _, _ = _ctx(conv, task_context=True)
+    assert all_user[0][1] == ("Task card: Renovate: nightly run fails on lookup\n"
+                              "Please look at the card the card and fix the lookup")
+    assert not any("t_d44358a1" in t or "t_0000abcd" in t for _, t in recent + all_user)
 
 
 def test_task_card_title_parses_truncated_and_ignores_other_tools():
@@ -117,13 +127,17 @@ def test_task_card_title_parses_truncated_and_ignores_other_tools():
     assert task_card_title('{"output": "ls", "exit_code": 0}') is None
     assert task_card_title("plain text") is None
     assert task_card_title({"task": {"title": "  a   b  "}}) == "a b"
+    spilled = ("<persisted-output>\nThis tool result was too large (118,303 characters).\n"
+               "Full output saved to: /x/spillover/call_1.txt\n\nPreview (first 1500 chars):\n"
+               '{"task": {"id": "t_400b6d08", "title": "Backup proof 2b: restore gate", "body": "Next stage')
+    assert task_card_title(spilled) == "Backup proof 2b: restore gate"
 
 
 def test_task_context_only_first_card_is_used():
     conv = CARD_CONV + [{"role": "user", "content": "now look at another"},
                         {"role": "tool", "content": '{"task": {"id": "t_2", "title": "Other card"}}'}]
     _, all_user, _, _ = _ctx(conv, task_context=True)
-    assert sum("[card:" in t for _, t in all_user) == 1 and not any("Other card" in t for _, t in all_user)
+    assert sum("Task card:" in t for _, t in all_user) == 1 and not any("Other card" in t for _, t in all_user)
 
 
 def test_titler_passes_task_context_to_prompt():

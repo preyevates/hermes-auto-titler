@@ -406,6 +406,10 @@ def clean_captured_text(text: str) -> Optional[str]:
 
 
 # 句子边界：中文/通用标点 + 换行 + 英文句点后跟空白
+_CARD_ID_RE = re.compile(r"\bt_[0-9a-f]{8}\b")
+_DISPATCH_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:work|run|do|continue|resume|pick\s+up)\s+(?:on\s+)?(?:the\s+)?"
+    r"(?:kanban\s+)?(?:task|card)\s+(?:t_[0-9a-f]{6,}|the card)\s*\.?\s*$", re.I)
 _CARD_TITLE_RE = re.compile(r'"task"\s*:\s*\{[^{}]*?"title"\s*:\s*"((?:[^"\\]|\\.)*)"')
 
 
@@ -420,6 +424,10 @@ def task_card_title(content: Any) -> Optional[str]:
     obj = content
     if isinstance(content, str):
         s = content.strip()
+        if s.startswith("<persisted-output>"):
+            # Hermes spills a large tool result to disk and keeps a preview of its head.
+            at = s.find("\n{", s.find("Preview"))
+            s = s[at + 1:] if at >= 0 else ""
         if not s.startswith("{") or '"task"' not in s[:200]:
             return None
         try:
@@ -809,9 +817,10 @@ def load_context_with_summary(
     """返回 (recent, all_user, opening, earlier_summary)。
 
     Estate fork: ``task_context=True`` reads the first task-card tool result
-    (``{"task": {"title": ...}}``, e.g. a Kanban ``kanban_show``) and appends
-    ``[card: <title>]`` to the user turn that started it, so a worker session
-    whose only human text is "work kanban task <id>" is titled by its subject.
+    ``{"task": {"title": ...}}``, e.g. a Kanban ``kanban_show``) and puts
+    ``Task card: <title>`` first in the user turn that started it (replacing a
+    bare "work kanban task <id>" dispatch line), and replaces card ids
+    (``t_<8 hex>``) with "the card", so a worker session is titled by its subject.
 
     earlier_summary 与可见用户意图轨迹分开；它永远不进入 opening、recent
     或 all_user。summary_chars>0 时用它截断摘要（retitle 盲改场景：模型没有
@@ -846,9 +855,14 @@ def load_context_with_summary(
             card = task_card_title(m.get("content"))
             if card:
                 card_seen = True
+                card = _CARD_ID_RE.sub("the card", card)
                 for i in range(len(pairs) - 1, -1, -1):
                     if pairs[i][0] == "user":
-                        pairs[i] = ("user", f"{pairs[i][1]}\n[card: {card}]")
+                        prior = pairs[i][1]
+                        # The card is the user's goal: put it first, and drop a bare
+                        # dispatch line ("work kanban task <id>") that says nothing else.
+                        pairs[i] = ("user", f"Task card: {card}" if _DISPATCH_RE.match(prior)
+                                    else f"Task card: {card}\n{prior}")
                         break
             continue
         if role not in ("user", "assistant"):
@@ -883,6 +897,9 @@ def load_context_with_summary(
         # transport so repeated user intent remains visible in the trajectory.
         if pairs and role == "user" and pairs[-1] == ("user", text):
             continue
+        if task_context:
+            # Card ids are bookkeeping, not subject; keep them out of the title's evidence.
+            text = _CARD_ID_RE.sub("the card", text)
         pairs.append((role, text))
 
     def preview(role: str, text: str) -> str:

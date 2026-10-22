@@ -103,6 +103,7 @@ def main():
             user_message_preview_chars=int(cfg.get("user_message_preview_chars", 300)),
             summary_chars=summary_chars,
             include_timeline=True,
+            task_context=bool(cfg.get("task_context", False)),
         )
         action, title = titler._generate(
             current,

@@ -1444,6 +1444,7 @@ class AutoTitler:
                 else int(self.cfg.get("summary_preview_chars", 1200))
             ),
             include_timeline=True,
+            task_context=bool(self.cfg.get("task_context", False)),
         )
 
         if not recent:

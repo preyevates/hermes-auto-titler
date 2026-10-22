@@ -93,6 +93,10 @@
 
 - Initial public release.
 
+## 0.3.0+estate.2 (estate fork, 2026-10-22)
+
+Adds `task_context` (default off): the first task-card tool result (`{"task": {"title": ...}}`, e.g. Kanban `kanban_show`) is appended as `[card: <title>]` to the user turn that started it. Without it, a worker session whose only human text is "work kanban task <id>" can only be titled by the queue, not by the card's subject. Measured on 99 real Kanban worker sessions: every one was titled by the queue.
+
 ## 0.3.0+estate.1 (estate fork, 2026-10-22)
 
 Fork of Vocllum/hermes-auto-titler at 42259f5. Adds `startup_requeue` (off switch for the startup sweep of past sessions) and `title_cutoff` (automatic titling never touches sessions started before it). Upstream behaviour unchanged at defaults. Upstream: candidate PR to Vocllum; Hermes request NousResearch/hermes-agent#92393.

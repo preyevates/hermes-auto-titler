@@ -406,6 +406,40 @@ def clean_captured_text(text: str) -> Optional[str]:
 
 
 # 句子边界：中文/通用标点 + 换行 + 英文句点后跟空白
+_CARD_TITLE_RE = re.compile(r'"task"\s*:\s*\{[^{}]*?"title"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+
+def task_card_title(content: Any) -> Optional[str]:
+    """Estate fork: the card title in a task-card tool result, else None.
+
+    Accepts the JSON object (``{"task": {"title": ...}}``) or its text, which may
+    be truncated; falls back to a pattern over the head of the text.
+    """
+    import json
+
+    obj = content
+    if isinstance(content, str):
+        s = content.strip()
+        if not s.startswith("{") or '"task"' not in s[:200]:
+            return None
+        try:
+            obj = json.loads(s)
+        except ValueError:
+            m = _CARD_TITLE_RE.search(s[:4000])
+            if not m:
+                return None
+            try:
+                obj = {"task": {"title": json.loads(f'"{m.group(1)}"')}}
+            except ValueError:
+                return None
+    task = obj.get("task") if isinstance(obj, dict) else None
+    title = task.get("title") if isinstance(task, dict) else None
+    if not isinstance(title, str):
+        return None
+    title = " ".join(title.split())
+    return title[:200] or None
+
+
 _SENT_RE = re.compile(r"[。！？…!?]|(?<=\.)\s|\n")
 
 
@@ -770,8 +804,14 @@ def load_context_with_summary(
     user_message_preview_chars: int = 0,
     summary_chars: int = 0,
     include_timeline: bool = False,
+    task_context: bool = False,
 ) -> Any:
     """返回 (recent, all_user, opening, earlier_summary)。
+
+    Estate fork: ``task_context=True`` reads the first task-card tool result
+    (``{"task": {"title": ...}}``, e.g. a Kanban ``kanban_show``) and appends
+    ``[card: <title>]`` to the user turn that started it, so a worker session
+    whose only human text is "work kanban task <id>" is titled by its subject.
 
     earlier_summary 与可见用户意图轨迹分开；它永远不进入 opening、recent
     或 all_user。summary_chars>0 时用它截断摘要（retitle 盲改场景：模型没有
@@ -799,8 +839,18 @@ def load_context_with_summary(
     summaries: List[Tuple[Optional[float], int, str]] = []
     saw_summary = False
     raw_user_before_summary = False
+    card_seen = not task_context
     for m in conv:
         role = m.get("role")
+        if role == "tool" and not card_seen:
+            card = task_card_title(m.get("content"))
+            if card:
+                card_seen = True
+                for i in range(len(pairs) - 1, -1, -1):
+                    if pairs[i][0] == "user":
+                        pairs[i] = ("user", f"{pairs[i][1]}\n[card: {card}]")
+                        break
+            continue
         if role not in ("user", "assistant"):
             continue
         if ignore_model_messages and role == "assistant":

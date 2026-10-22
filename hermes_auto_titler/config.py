@@ -69,6 +69,9 @@ DEFAULTS: dict[str, Any] = {
     # moment (ISO date, ISO datetime, or Unix seconds). Empty = no cutoff.
     # Explicit /autotitler commands are not affected.
     "title_cutoff": "",
+    # Estate fork: add the task card's title (first {"task": {"title"}} tool
+    # result, e.g. kanban_show) to the context. False keeps upstream behaviour.
+    "task_context": False,
 }
 
 VALID_STRATEGIES = {"conservative", "aggressive"}

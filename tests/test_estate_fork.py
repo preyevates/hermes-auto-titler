@@ -177,3 +177,17 @@ def test_titler_never_writes_a_blocked_word():
     t, llm = titler(db, blocked_words="frasier")
     assert t._prepare_candidate("Media Library: Frasier corpus inspection") == "Media Library: corpus inspection"
     assert t._prepare_candidate("Operations: Frasier") is None
+
+
+# --- metadata-only pyproject (estate fork, 0.3.0+estate.4) -----------------------------------
+
+def test_pyproject_is_metadata_only_so_many_profiles_can_enable_it():
+    """A buildable member keeps its declared name in the host's shared dependency workspace, so a
+    second profile enabling the plugin collides ("Two workspace members are both named ...")."""
+    import tomllib
+    from pathlib import Path
+
+    doc = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
+    assert "build-system" not in doc
+    assert doc.get("tool", {}).get("uv", {}).get("package") is not True
+    assert doc["project"]["dependencies"] == ["PyYAML"]

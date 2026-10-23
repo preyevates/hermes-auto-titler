@@ -93,6 +93,10 @@
 
 - Initial public release.
 
+## 0.3.0+estate.4 (estate fork, 2026-10-22)
+
+- **Enable in more than one profile of one install**: `pyproject.toml` drops `[build-system]` and `[tool.setuptools]`. Hermes loads the plugin from its directory and never builds it; the file only declares `PyYAML`. A buildable member keeps its declared name in the host's shared dependency workspace, so a second profile enabling the plugin failed `uv lock` with "Two workspace members are both named `hermes-auto-titler`". A metadata-only member gets a per-home name (`hermes-plugin-<dir>-<hash>`), as other multi-profile plugins do. Upstream note: same change applies to Vocllum/hermes-auto-titler.
+
 ## 0.3.0+estate.3 (estate fork, 2026-10-22)
 
 Adds `blocked_words` (default empty): comma-separated words, such as host, person and agent names, that never reach a stored title. Each is dropped, with its possessive, from a candidate before it is written; a title left with nothing after its prefix is discarded. A prompt cannot guarantee "never"; this does.
